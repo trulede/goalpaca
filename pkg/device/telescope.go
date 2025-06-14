@@ -1,5 +1,12 @@
 package device
 
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+)
+
 // TelescopeInstance contains ASCOM Telescope property getters.
 type TelescopeInstance struct {
 	DeviceInstance
@@ -67,4 +74,67 @@ type Telescope interface {
 	SyncToCoordinates(rightAscension, declination float64) error
 	SyncToTarget() error
 	Unpark() error
+}
+
+// RegisterTelescopeEndpoints registers all Telescope endpoints to the given Gin router group.
+func RegisterTelescopeEndpoints(rg *gin.RouterGroup, devices DeviceTree) {
+	getProps := map[string]func(*TelescopeInstance) interface{}{
+		"alignmentmode":         func(t *TelescopeInstance) interface{} { return t.AlignmentMode },
+		"altitude":              func(t *TelescopeInstance) interface{} { return t.Altitude },
+		"aperturearea":          func(t *TelescopeInstance) interface{} { return t.ApertureArea },
+		"aperturediameter":      func(t *TelescopeInstance) interface{} { return t.ApertureDiameter },
+		"athome":                func(t *TelescopeInstance) interface{} { return t.AtHome },
+		"atpark":                func(t *TelescopeInstance) interface{} { return t.AtPark },
+		"azimuth":               func(t *TelescopeInstance) interface{} { return t.Azimuth },
+		"canfindhome":           func(t *TelescopeInstance) interface{} { return t.CanFindHome },
+		"canpark":               func(t *TelescopeInstance) interface{} { return t.CanPark },
+		"canpulseguide":         func(t *TelescopeInstance) interface{} { return t.CanPulseGuide },
+		"cansetdeclinationrate": func(t *TelescopeInstance) interface{} { return t.CanSetDeclinationRate },
+		"cansetguiderates":      func(t *TelescopeInstance) interface{} { return t.CanSetGuideRates },
+		"cansetpark":            func(t *TelescopeInstance) interface{} { return t.CanSetPark },
+		"cansetpierside":        func(t *TelescopeInstance) interface{} { return t.CanSetPierSide },
+		"cansetrightascensionrate": func(t *TelescopeInstance) interface{} { return t.CanSetRightAscensionRate },
+		"cansettracking":        func(t *TelescopeInstance) interface{} { return t.CanSetTracking },
+		"canslew":               func(t *TelescopeInstance) interface{} { return t.CanSlew },
+		"canslewaltaz":          func(t *TelescopeInstance) interface{} { return t.CanSlewAltAz },
+		"canslewaltazasync":     func(t *TelescopeInstance) interface{} { return t.CanSlewAltAzAsync },
+		"canslewasync":          func(t *TelescopeInstance) interface{} { return t.CanSlewAsync },
+		"cansync":               func(t *TelescopeInstance) interface{} { return t.CanSync },
+		"cansyncaltaz":          func(t *TelescopeInstance) interface{} { return t.CanSyncAltAz },
+		"canunpark":             func(t *TelescopeInstance) interface{} { return t.CanUnpark },
+		"declination":           func(t *TelescopeInstance) interface{} { return t.Declination },
+		"declinationrate":       func(t *TelescopeInstance) interface{} { return t.DeclinationRate },
+		"doesrefraction":        func(t *TelescopeInstance) interface{} { return t.DoesRefraction },
+		"equatorialsystem":      func(t *TelescopeInstance) interface{} { return t.EquatorialSystem },
+		"guideratedeclination":  func(t *TelescopeInstance) interface{} { return t.GuideRateDeclination },
+		"guideraterightascension": func(t *TelescopeInstance) interface{} { return t.GuideRateRightAscension },
+		"ispulseguiding":        func(t *TelescopeInstance) interface{} { return t.IsPulseGuiding },
+		"pierside":              func(t *TelescopeInstance) interface{} { return t.PierSide },
+		"rightascension":        func(t *TelescopeInstance) interface{} { return t.RightAscension },
+		"rightascensionrate":    func(t *TelescopeInstance) interface{} { return t.RightAscensionRate },
+		"targetdeclination":     func(t *TelescopeInstance) interface{} { return t.TargetDeclination },
+		"targetrightascension":  func(t *TelescopeInstance) interface{} { return t.TargetRightAscension },
+		"tracking":              func(t *TelescopeInstance) interface{} { return t.Tracking },
+		"trackingrate":          func(t *TelescopeInstance) interface{} { return t.TrackingRate },
+		"trackingrates":         func(t *TelescopeInstance) interface{} { return t.TrackingRates },
+		"utcdate":               func(t *TelescopeInstance) interface{} { return t.UTCDate },
+	}
+	for prop, getter := range getProps {
+		prop := prop
+		getter := getter
+		rg.GET("/:number/"+prop, func(c *gin.Context) {
+			numStr := c.Param("number")
+			num, err := strconv.Atoi(numStr)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid telescope number"})
+				return
+			}
+			telescope, ok := devices["Telescope"][DeviceIndex(num)]
+			if !ok {
+				c.JSON(http.StatusNotFound, gin.H{"error": "telescope not found"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"Value": getter(telescope)})
+		})
+	}
 }
